@@ -108,11 +108,15 @@ class App extends Component {
 
   handleFetchProducts = () => {
     axios.get(`${process.env.REACT_APP_DOMAIN}/api/v1/products/`)
-    .then(response => this.setState({
-      ...this.state,
-      products: response.data,
-      productsList: response.data.results
-    })).catch(err => console.log(err.sku))
+    .then(response => {
+        console.log(`${process.env.REACT_APP_DOMAIN}/api/v1/products/`)
+        console.log(response.data)
+        this.setState({
+        ...this.state,
+        products: response.data,
+        productsList: response.data.results
+      });
+    }).catch(err => console.log(err))
   }
 
   handleChange = event => {
@@ -198,6 +202,8 @@ class App extends Component {
   }
 
   render() {
+    console.log('>>>>>>>>>> ', Object.keys(this.state.taskProgress).length)
+    console.log(`${process.env.REACT_APP_DOMAIN}/api/v1/products/upload/`)
     return (
       <div className="App">
         {this.state.alert.showAlert && (
@@ -285,7 +291,7 @@ class App extends Component {
           />
         } */}
         {
-          Object.keys(this.state.taskProgress).length && (
+          Object.keys(this.state.taskProgress).length ? (
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <Box sx={{ width: '100%', mr: 1 }}>
                 <LinearProgress variant="determinate" value={this.state.taskProgress.percent} />
@@ -296,7 +302,7 @@ class App extends Component {
                 )}%`}</Typography>
               </Box>
             </Box>
-          )
+          ) : (<p></p>)
         }
         <TableContainer component={Paper}>
           <Table>
