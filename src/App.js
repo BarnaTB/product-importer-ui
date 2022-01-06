@@ -88,7 +88,7 @@ class App extends Component {
         loading: true
       })
       axios.post(
-        `http://localhost:8000/api/v1/products/`,
+        `${process.env.REACT_APP_DOMAIN}/api/v1/products/`,
         {
           sku: this.state.sku,
           name: this.state.name,
@@ -107,7 +107,7 @@ class App extends Component {
   }
 
   handleFetchProducts = () => {
-    axios.get(`http://localhost:8000/api/v1/products/`)
+    axios.get(`${process.env.REACT_APP_DOMAIN}/api/v1/products/`)
     .then(response => this.setState({
       ...this.state,
       products: response.data,
@@ -128,7 +128,7 @@ class App extends Component {
       data.append('file', event.target.files[0])
 
       axios.post(
-        `http://localhost:8000/api/v1/products/upload/`,
+        `${process.env.REACT_APP_DOMAIN}/api/v1/products/upload/`,
         data,
         )
         .then(response => this.setState({
@@ -163,7 +163,7 @@ class App extends Component {
       })
     } else {
       axios.get(
-        `http://localhost:8000/celery-progress/` + this.state.taskId
+        `${process.env.REACT_APP_DOMAIN}/celery-progress/` + this.state.taskId
         ).then(response => this.setState({
           ...this.state,
           taskProgress: response.data
