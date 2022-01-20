@@ -4,6 +4,7 @@ import './App.css';
 import Box from '@mui/material/Box';
 import TextField from '@mui/material/TextField';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import Button from '@mui/material/Button';
 import Alert from '@mui/material/Alert';
 import AlertTitle from '@mui/material/AlertTitle';
@@ -38,18 +39,72 @@ class App extends Component {
       alertTitle: "",
       alertDetail: "",
     },
+    tableAlert: {
+      showAlert: true,
+      severity: 'success',
+      alertTitle: 'Hooray or sorry!!!',
+      alertDetail: 'You deleted all the products!'
+    },
     loading: false,
+    showProgress: false,
     file: '',
+    taskId: '',
     taskProgress: {},
     delay: 3000
   }
 
+  // eventSource = new EventSource(`${process.env.REACT_APP_BACKEND_DOMAIN}/api/v1/products/stream/${this.state.taskId}`)
+
   componentDidMount = () => {
     this.handleFetchProducts();
-    if (this.state.taskId) {
-      this.interval = setInterval(this.handleUploadProgress, this.state.delay);
-    }
+    // this.eventSource.onmessage = e => {
+    //   console.log(e.data);
+    // }
+    // if (this.state.showProgress) {
+    //   this.interval = setInterval(this.handleUploadProgress, this.state.delay);
+    // }
   }
+
+  componentDidUpdate = async (prevProps, prevState) => {
+    if (prevState.taskId !== this.state.taskId) {
+      // axios({
+      //   method: 'get',
+      //   url: `${process.env.REACT_APP_BACKEND_DOMAIN}/api/v1/products/stream/${this.state.taskId}`,
+      //   responseType: 'stream',
+      //   crossorigin: true,
+      // }).then(response => {
+      //   console.log(response.data);
+      // })
+      console.log(`${process.env.REACT_APP_BACKEND_DOMAIN}/api/v1/products/stream/${this.state.taskId}`)
+      const eventSource = new EventSource(
+        `${process.env.REACT_APP_BACKEND_DOMAIN}/api/v1/products/stream/${this.state.taskId}`,
+        // {withCredentials: true}
+        );
+
+      console.log(`>>>>>>>> previous ${prevState.taskId} >>>>>>> current ${this.state.taskId}`);
+      console.log(typeof(eventSource));
+      eventSource.onmessage = e => {
+        console.log(e.data);
+        console.log(typeof(e.data));
+
+      }
+      eventSource.onclose = e => {
+        console.log("Closed stream");
+      }
+      eventSource.onerror = function(err) {
+        console.error("EventSource failed:", err);
+      };
+    }
+    // if (this.state.showProgress) {
+    //   this.interval = setInterval(() => {
+    //     this.handleUploadProgress();
+    //   }, this.state.delay);
+    // }
+  }
+
+  // componentWillUnmount(){
+  //   clearInterval(this.interval);
+  // }
 
   handleSubmitForm = event => {
     if (!this.state.sku) {
@@ -88,7 +143,7 @@ class App extends Component {
         loading: true
       })
       axios.post(
-        `${process.env.REACT_APP_DOMAIN}/api/v1/products/`,
+        `${process.env.REACT_APP_BACKEND_DOMAIN}/api/v1/products/`,
         {
           sku: this.state.sku,
           name: this.state.name,
@@ -107,16 +162,37 @@ class App extends Component {
   }
 
   handleFetchProducts = () => {
-    axios.get(`${process.env.REACT_APP_DOMAIN}/api/v1/products/`)
+    axios.get(`${process.env.REACT_APP_BACKEND_DOMAIN}/api/v1/products/`)
     .then(response => {
-        console.log(`${process.env.REACT_APP_DOMAIN}/api/v1/products/`)
-        console.log(response.data)
         this.setState({
         ...this.state,
         products: response.data,
         productsList: response.data.results
       });
     }).catch(err => console.log(err))
+  }
+
+  handleDeleteProducts = (sku=null) => {
+    this.setState({
+      ...this.state,
+      loading: true,
+    })
+    let url = sku ? `${process.env.REACT_APP_BACKEND_DOMAIN}/api/v1/products/product/${sku}/` : `${process.env.REACT_APP_BACKEND_DOMAIN}/api/v1/products/product/`;
+    console.log(typeof(url));
+    axios.delete(url)
+      .then(response => {
+        console.log(response)
+        this.setState({
+          ...this.state,
+          loading:false,
+          tableAlert: {
+            showAlert: true,
+            severity: 'success',
+            alertTitle: 'Hooray!!!',
+            alertDetail: 'Product(s) successfully deleted!'
+          } 
+        });
+      }).catch(err => console.log(err))
   }
 
   handleChange = event => {
@@ -132,14 +208,18 @@ class App extends Component {
       data.append('file', event.target.files[0])
 
       axios.post(
-        `${process.env.REACT_APP_DOMAIN}/api/v1/products/upload/`,
+        `${process.env.REACT_APP_BACKEND_DOMAIN}/api/v1/products/upload/`,
         data,
         )
-        .then(response => this.setState({
-          ...this.state,
-          loading:true,
-          taskId: response.data.task_id
-        })).catch(err => console.log(err))
+        .then(response => {
+          this.setState({
+            ...this.state,
+            loading:true,
+            taskId: response.data.task_id,
+            showProgress: true
+          });
+          // this.handleTaskProgressStream(response.data.task_id);
+        }).catch(err => console.log(err))
     } else {
       this.setState({
         ...this.state,
@@ -154,10 +234,15 @@ class App extends Component {
   }
 
   handleUploadProgress = () => {
-    if (Object.keys(this.state.taskProgress).length && this.state.taskProgress.complete) {
+    console.log(this.state.taskProgress);
+    if (this.state.taskProgress.complete) {
+      console.log(this.state.taskProgress);
+      clearInterval(this.interval);
       this.setState({
         ...this.state,
         taskId: '',
+        showProgress: false,
+        loading: false,
         alert: {
           showAlert: true,
           severity: 'success',
@@ -166,13 +251,16 @@ class App extends Component {
         }
       })
     } else {
+      console.log(`${process.env.REACT_APP_BACKEND_DOMAIN}/celery-progress/${this.state.taskId}`)
       axios.get(
-        `${process.env.REACT_APP_DOMAIN}/celery-progress/` + this.state.taskId
-        ).then(response => this.setState({
-          ...this.state,
-          taskProgress: response.data
-      })
-      ).catch(err => {
+        `${process.env.REACT_APP_BACKEND_DOMAIN}/celery-progress/${this.state.taskId}`
+        ).then(response => {
+          console.log(response.data)
+          this.setState({
+              ...this.state,
+              taskProgress: {...response.data}
+          })
+    }).catch(err => {
         this.setState({
           ...this.state,
           alert: {
@@ -183,6 +271,30 @@ class App extends Component {
           }
         })
       })
+    }
+  }
+
+  handleTaskProgressStream = (taskId) => {
+    let eventSource = new EventSource(`${process.env.REACT_APP_BACKEND_DOMAIN}/api/v1/products/stream/${taskId}`);
+
+    eventSource.onopen = () => {
+      console.log(`Console open . . .`)
+      this.setState({
+        ...this.state,
+        loading: true,
+      });
+    }
+
+    eventSource.onmessage = e => {
+      console.log(e.data);
+      // this.setState({
+      //   ...this.state,
+      //   taskProgress: 
+      // })
+    }
+
+    eventSource.onclose = e => {
+      console.log(`error `, e);
     }
   }
 
@@ -202,8 +314,31 @@ class App extends Component {
   }
 
   render() {
-    console.log('>>>>>>>>>> ', Object.keys(this.state.taskProgress).length)
-    console.log(`${process.env.REACT_APP_DOMAIN}/api/v1/products/upload/`)
+    // if (this.state.taskId) {
+    //   let eventSource = new EventSource(`${process.env.REACT_APP_BACKEND_DOMAIN}api/v1/products/stream/${this.state.taskId}`);
+
+    //   eventSource.onopen = () => {
+    //     console.log(`Console open . . .`)
+    //     this.setState({
+    //       ...this.state,
+    //       loading: true,
+    //     });
+    //   }
+
+    //   eventSource.onmessage = e => {
+    //     console.log(e.data);
+    //     // this.setState({
+    //     //   ...this.state,
+    //     //   taskProgress: 
+    //     // })
+    //   }
+
+    //   eventSource.onclose = e => {
+    //     console.log(`error `, e);
+    //   }
+    // }
+    
+    // this.handleTaskProgressStream();
     return (
       <div className="App">
         {this.state.alert.showAlert && (
@@ -265,7 +400,7 @@ class App extends Component {
           <span>{this.state.file.name}</span>
         </Box>
         {/* {
-          this.state.taskId &&
+          this.state.showProgress &&
           <ReactPolling
             url={`http://locahost:8000/celery-progress/ ${this.state.taskId}`}
             interval= {3000} // in milliseconds(ms)
@@ -284,17 +419,26 @@ class App extends Component {
                 })
               } else {
                 return (
-                  <div> Hello I stopped polling</div>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Box sx={{ width: '100%', mr: 1 }}>
+                      <LinearProgress variant="determinate" value={this.state.taskProgress.percent} />
+                    </Box>
+                    <Box sx={{ minWidth: 35 }}>
+                      <Typography variant="body2" color="text.secondary">{`${Math.round(
+                        this.state.taskProgress.percent
+                      )}%`}</Typography>
+                    </Box>
+                  </Box>
                 );
               }
-            }}
-          />
+            }} */}
+          {/* />
         } */}
         {
-          Object.keys(this.state.taskProgress).length ? (
+          Object.keys(this.state.taskProgress).length > 0 && (
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <Box sx={{ width: '100%', mr: 1 }}>
-                <LinearProgress variant="determinate" value={this.state.taskProgress.percent} />
+                <LinearProgress variant="determinate" value={this.state.taskProgress.progress.percent} />
               </Box>
               <Box sx={{ minWidth: 35 }}>
                 <Typography variant="body2" color="text.secondary">{`${Math.round(
@@ -302,7 +446,7 @@ class App extends Component {
                 )}%`}</Typography>
               </Box>
             </Box>
-          ) : (<p></p>)
+          )
         }
         <TableContainer component={Paper}>
           <Table>
@@ -312,6 +456,21 @@ class App extends Component {
                 <TableCell align={"right"}>Name</TableCell>
                 <TableCell align={"right"}>Description</TableCell>
                 <TableCell align={"right"}>Active</TableCell>
+                <TableCell align={"right"}>
+                  <Button
+                    variant="contained"
+                    startIcon={<DeleteForeverIcon/>}
+                    onClick={this.handleDeleteProducts} 
+                    disabled={this.state.loading}
+                    color="error"
+                  >
+                    {
+                      this.state.loading ?
+                      (<CircularProgress size={30} color="error" />) :
+                      ('Delete All Products')
+                    }
+                  </Button>
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -325,6 +484,21 @@ class App extends Component {
                       <TableCell align={"right"}>{product.name}</TableCell>
                       <TableCell align={"right"}>{product.description}</TableCell>
                       <TableCell align={"right"}>{product.active ? 'Active' : 'Inactive'}</TableCell>
+                      <TableCell align={"right"}>
+                        <Button
+                          variant="contained"
+                          startIcon={<DeleteForeverIcon/>}
+                          onClick={this.handleDeleteProducts.bind(this, product.sku)} 
+                          disabled={this.state.loading}
+                          color="error"
+                        >
+                          {
+                            this.state.loading ?
+                            (<CircularProgress size={30} color="error" />) :
+                            ('Delete(this product)')
+                          }
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   );
                 }))
