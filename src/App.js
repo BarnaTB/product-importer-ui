@@ -19,7 +19,7 @@ import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import LinearProgress from '@mui/material/LinearProgress';
-// import ReactPolling from 'react-polling';
+import { fetchEventSource } from "@microsoft/fetch-event-source";
 
 axios.defaults.xsrfCookieName = 'csrftoken'
 axios.defaults.xsrfHeaderName = 'X-CSRFToken'
@@ -67,44 +67,37 @@ class App extends Component {
 
   componentDidUpdate = async (prevProps, prevState) => {
     if (prevState.taskId !== this.state.taskId) {
-      // axios({
-      //   method: 'get',
-      //   url: `${process.env.REACT_APP_BACKEND_DOMAIN}/api/v1/products/stream/${this.state.taskId}`,
-      //   responseType: 'stream',
-      //   crossorigin: true,
-      // }).then(response => {
-      //   console.log(response.data);
-      // })
-      console.log(`${process.env.REACT_APP_BACKEND_DOMAIN}/api/v1/products/stream/${this.state.taskId}`)
-      const eventSource = new EventSource(
+      await fetchEventSource(
         `${process.env.REACT_APP_BACKEND_DOMAIN}/api/v1/products/stream/${this.state.taskId}`,
-        // {withCredentials: true}
-        );
-
-      console.log(`>>>>>>>> previous ${prevState.taskId} >>>>>>> current ${this.state.taskId}`);
-      console.log(typeof(eventSource));
-      eventSource.onmessage = e => {
-        console.log(e.data);
-        console.log(typeof(e.data));
-
-      }
-      eventSource.onclose = e => {
-        console.log("Closed stream");
-      }
-      eventSource.onerror = function(err) {
-        console.error("EventSource failed:", err);
-      };
+        {
+          method: "GET",
+          headers: {
+            Accept: "text/event-stream",
+          },
+          onopen(res) {
+            console.log(res)
+            if (res.ok && res.status === 200) {
+              console.log("Connection made ", res);
+            } else if (
+              res.status >= 400 &&
+              res.status < 500 &&
+              res.status !== 429
+            ) {
+              console.log("Client side error ", res);
+            }
+          }, onmessage(event) {
+            console.log(event.data);
+            const parsedData = JSON.parse(event.data);
+            console.log(parsedData);
+            // setData((data) => [...data, parsedData]);
+          }, onclose() {
+            console.log("Connection closed by the server");
+          }, onerror(err) {
+            console.log("There was an error from server", err);
+          }
+        })
+    };
     }
-    // if (this.state.showProgress) {
-    //   this.interval = setInterval(() => {
-    //     this.handleUploadProgress();
-    //   }, this.state.delay);
-    // }
-  }
-
-  // componentWillUnmount(){
-  //   clearInterval(this.interval);
-  // }
 
   handleSubmitForm = event => {
     if (!this.state.sku) {
@@ -218,7 +211,6 @@ class App extends Component {
             taskId: response.data.task_id,
             showProgress: true
           });
-          // this.handleTaskProgressStream(response.data.task_id);
         }).catch(err => console.log(err))
     } else {
       this.setState({
@@ -287,10 +279,6 @@ class App extends Component {
 
     eventSource.onmessage = e => {
       console.log(e.data);
-      // this.setState({
-      //   ...this.state,
-      //   taskProgress: 
-      // })
     }
 
     eventSource.onclose = e => {
@@ -314,31 +302,6 @@ class App extends Component {
   }
 
   render() {
-    // if (this.state.taskId) {
-    //   let eventSource = new EventSource(`${process.env.REACT_APP_BACKEND_DOMAIN}api/v1/products/stream/${this.state.taskId}`);
-
-    //   eventSource.onopen = () => {
-    //     console.log(`Console open . . .`)
-    //     this.setState({
-    //       ...this.state,
-    //       loading: true,
-    //     });
-    //   }
-
-    //   eventSource.onmessage = e => {
-    //     console.log(e.data);
-    //     // this.setState({
-    //     //   ...this.state,
-    //     //   taskProgress: 
-    //     // })
-    //   }
-
-    //   eventSource.onclose = e => {
-    //     console.log(`error `, e);
-    //   }
-    // }
-    
-    // this.handleTaskProgressStream();
     return (
       <div className="App">
         {this.state.alert.showAlert && (
@@ -399,41 +362,6 @@ class App extends Component {
           </label>
           <span>{this.state.file.name}</span>
         </Box>
-        {/* {
-          this.state.showProgress &&
-          <ReactPolling
-            url={`http://locahost:8000/celery-progress/ ${this.state.taskId}`}
-            interval= {3000} // in milliseconds(ms)
-            retryCount={3} // this is optional
-            onSuccess={(response) => this.setState({
-              ...this.state,
-              taskProgress: response.data
-            })}
-            onFailure={() => console.log('handle failure')} // this is optional
-            method={'GET'}
-            render={({ startPolling, stopPolling, isPolling }) => {
-              if(isPolling) {
-                this.setState({
-                  ...this.state,
-                  loading: true
-                })
-              } else {
-                return (
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Box sx={{ width: '100%', mr: 1 }}>
-                      <LinearProgress variant="determinate" value={this.state.taskProgress.percent} />
-                    </Box>
-                    <Box sx={{ minWidth: 35 }}>
-                      <Typography variant="body2" color="text.secondary">{`${Math.round(
-                        this.state.taskProgress.percent
-                      )}%`}</Typography>
-                    </Box>
-                  </Box>
-                );
-              }
-            }} */}
-          {/* />
-        } */}
         {
           Object.keys(this.state.taskProgress).length > 0 && (
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
